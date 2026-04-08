@@ -1,0 +1,16 @@
+# Client
+client/node_modules
+client/dist
+client/.env
+client/.env.local
+
+# Server
+server/node_modules
+server/dist
+server/.env
+
+# Prisma
+server/generated
+
+# OS
+.DS_Store
