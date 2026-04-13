@@ -6,37 +6,134 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── USER ───────────────────────────────────────────────
 model User {
-  id           String        @id @default(cuid())
-  clerkId      String        @unique
-  email        String        @unique
-  username     String?
+  id          String   @id @default(cuid())
+  clerkId     String   @unique         // ID dari Clerk Auth
+  email       String   @unique
+  username    String?
+  avatarUrl   String?
+  role        Role     @default(BUYER)
+  isVerified  Boolean  @default(false)  // Seller verification
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   products     Product[]
-  transactions Transaction[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  transactions Transaction[] @relation("BuyerTransactions")
+  reviews      Review[]
+
+  @@map("users")
 }
 
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+// ─── PRODUCT (Akun Game) ────────────────────────────────
 model Product {
   id           String        @id @default(cuid())
-  name         String
-  description  String
-  price        Float
-  owner        User          @relation(fields: [ownerId], references: [id])
-  ownerId      String
-  transactions Transaction[]
+  sellerId     String
+  seller       User          @relation(fields: [sellerId], references: [id])
+
+  title        String
+  description  String        @db.Text
+  game         GameType      // Enum game
+  price        Int           // dalam Rupiah (IDR)
+  rank         String?       // e.g. "Mythic", "Grandmaster"
+  server       String?       // e.g. "Asia", "NA"
+  heroes       String[]      // List nama hero/karakter
+  imageUrls    String[]      // Array URL gambar screenshot
+
+  accountLevel Int?
+  winRate      Float?
+
+  status       ProductStatus @default(PENDING)
+  isFeatured   Boolean       @default(false)
+  viewCount    Int           @default(0)
+
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  transactions Transaction[]
+  reviews      Review[]
+
+  @@map("products")
 }
 
+enum GameType {
+  MOBILE_LEGENDS
+  FREE_FIRE
+  PUBG_MOBILE
+  GENSHIN_IMPACT
+  VALORANT
+  LEAGUE_OF_LEGENDS
+  OTHER
+}
+
+enum ProductStatus {
+  PENDING    // Menunggu verifikasi admin
+  ACTIVE     // Tersedia untuk dibeli
+  SOLD       // Sudah terjual
+  REJECTED   // Ditolak admin
+  DELETED
+}
+
+// ─── TRANSACTION ────────────────────────────────────────
 model Transaction {
-  id        String   @id @default(cuid())
-  amount    Float
-  status    String   @default("PENDING")
-  user      User     @relation(fields: [userId], references: [id])
+  id              String            @id @default(cuid())
+  buyerId         String
+  buyer           User              @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  productId       String
+  product         Product           @relation(fields: [productId], references: [id])
+
+  amount          Int               // Total bayar (IDR)
+  platformFee     Int               // Fee marketplace (misal 5%)
+  sellerRevenue   Int               // amount - platformFee
+
+  status          TransactionStatus @default(PENDING)
+  paymentMethod   String?           // "bank_transfer", "gopay", dll
+
+  // Midtrans fields
+  midtransOrderId String?           @unique
+  midtransToken   String?
+  paymentUrl      String?
+  paidAt          DateTime?
+
+  // Setelah bayar, akun diberikan ke buyer
+  accountEmail    String?           // Kredensial akun game
+  accountPassword String?           // PENTING: encrypt sebelum simpan
+  accountNotes    String?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("transactions")
+}
+
+enum TransactionStatus {
+  PENDING     // Belum bayar
+  PAID        // Sudah bayar, proses transfer akun
+  COMPLETED   // Akun sudah diserahkan
+  FAILED      // Pembayaran gagal
+  CANCELLED   // Dibatalkan
+  REFUNDED    // Dikembalikan
+}
+
+// ─── REVIEW ─────────────────────────────────────────────
+model Review {
+  id        String  @id @default(cuid())
   userId    String
-  product   Product  @relation(fields: [productId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
   productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  rating    Int     // 1-5
+  comment   String? @db.Text
+
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])   // 1 user = 1 review per produk
+  @@map("reviews")
 }
