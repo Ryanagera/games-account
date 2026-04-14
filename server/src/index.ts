@@ -1,14 +1,16 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import dotenv from "dotenv";
+import { clerkMiddleware } from "@clerk/express";
 import prisma from "./config/database.js";
+import userRoutes from "./modules/user/user.routes.js";
 
-dotenv.config();
+
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet());
@@ -20,6 +22,10 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(clerkMiddleware());
+
+// Routes
+app.use("/api/users", userRoutes);
 
 // Main Route
 app.get("/", (req, res) => {
@@ -32,6 +38,7 @@ app.get("/api/health", async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ok", database: "connected" });
   } catch (error) {
+    console.error("Database connection error:", error);
     res.status(500).json({ status: "error", database: "disconnected" });
   }
 });
